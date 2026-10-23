@@ -67,7 +67,7 @@ create_profile() {
   "$FIREFOX" -CreateProfile "$name" >/dev/null 2>&1 || true
   # The exit code is 0 even on "Error creating profile", so check the result.
   dir=$(find_profile "$name")
-  [ -n "$dir" ] && [ -d "$dir" ] || die "Firefox did not create profile '$name'"
+  [ -d "$dir" ] || die "Firefox did not create profile '$name'"
   mkdir -p "$(dirname "$CONF")"
   printf '# firefox-mcp profile directory (first non-comment line)\n%s\n' "$dir" > "$CONF"
   echo "created $dir"
