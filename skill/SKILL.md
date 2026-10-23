@@ -18,8 +18,9 @@ listening on 2828. If none is running, every tool fails. Start one with
 | Daily | your normal profile | off | real browsing, logins |
 | MCP | dedicated profile (`firefox-mcp --print-profile`) | on, 2828; BiDi on 9222 | driven by the agent |
 
-Both run at the same time: they are different profiles, and `--new-instance`
-keeps the MCP one from being folded into the daily process.
+Both run at the same time: Firefox runs one process per profile (measured on
+Firefox 157). Starting Firefox with Marionette flags *without* a different
+profile only opens a window in the running daily instance, and no port opens.
 
 ## Why it is split
 
@@ -40,15 +41,17 @@ keeps the MCP one from being folded into the daily process.
 
 1. **All tools fail, even `list_pages`.** Check that something listens:
    `ss -tln | grep -E ':(2828|9222)\b'`. Nothing → run `firefox-mcp`.
-2. **Ports are up but every tool returns `Error: unknown error`.** Marionette
-   accepts **one** client. Another MCP server (often another Claude Code
-   session) holds it. Find it:
+2. **Ports are up but every tool returns `Error: unknown error`** (up to
+   firefox-devtools-mcp 0.10.6; later versions fail fast with "Another WebDriver
+   session is already active"). Marionette accepts **one** client. Another MCP
+   server (often another Claude Code session) holds it. Find it:
    - `ss -tnp | grep :2828` shows the other `geckodriver` connection;
    - `pgrep -af firefox-devtools-mcp`, then `ps -o ppid= -p <pid>`, leads to the
      owning client; `readlink /proc/<pid>/cwd` tells which project it runs in.
 
-   Asking that session to "stop using it" is not enough: its server reconnects
-   as soon as the port is free and wins the race. In the other session run
+   Asking that session to "stop using it" is not enough: the server keeps its
+   session until its idle timeout (30 min; `--idle-timeout` after 0.10.6), and
+   reconnects on its next tool call. In the other session run
    `/mcp` → `firefox-devtools` → **Disable** (or close it), then `/mcp` →
    Reconnect here. Do not kill another session's processes.
 3. **After restarting the MCP browser,** `--connect-existing` reconnects once

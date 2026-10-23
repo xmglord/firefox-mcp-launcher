@@ -100,7 +100,8 @@ if (exec 3<>"/dev/tcp/127.0.0.1/$MARIONETTE_PORT") 2>/dev/null; then
   exec "$FIREFOX" --profile "$MCP" "$@"
 fi
 
-# First start: new instance with Marionette and the Remote Agent (BiDi).
+# First start: Marionette and the Remote Agent (BiDi). A different profile
+# already gets its own process; --new-instance makes that explicit.
 # Without the Remote Agent the MCP cannot navigate (navigate_page/new_page fail
 # with "reading 'replace'") nor capture network/console: the WebDriver session
 # never gets the webSocketUrl capability selenium needs for BiDi.

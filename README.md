@@ -12,7 +12,7 @@ protocols on. Your daily Firefox keeps running untouched.
 ```
  daily Firefox ─ your profile, no Marionette        (normal browsing, logins)
 
- MCP Firefox ── dedicated profile, --new-instance
+ MCP Firefox ── dedicated profile, its own process
      ├─ Marionette        127.0.0.1:2828  ◄── firefox-devtools-mcp --connect-existing
      └─ Remote Agent/BiDi 127.0.0.1:9222  ◄──┘   (navigation, console, network)
 ```
@@ -74,9 +74,13 @@ dedicated profile" warning is about.
 - **Every tool fails, even listing pages.** Nothing listens on 2828: run `firefox-mcp`.
   `--connect-existing` never launches Firefox.
 - **Ports are up, but every tool returns `Error: unknown error`.** Marionette accepts only one
-  client, so another MCP server (for example, a second agent session) is attached.
-  `ss -tnp | grep :2828` shows that connection. Disable the server in the other client, then
-  reconnect in yours. A client that only "stops using it" reconnects as soon as the port is free.
+  client, so another MCP server (for example, a second agent session) is attached. Versions after
+  0.10.6 report this directly ("Another WebDriver session is already active"). `ss -tnp | grep :2828`
+  shows that connection. Disable the server in the other client, then reconnect in yours. A client
+  that only "stops using it" keeps the session until its idle timeout (30 min; `--idle-timeout` after 0.10.6).
+- **`firefox --marionette ...` opened a window but no port is listening.** Firefox was already running
+  with that profile, so the command was handed to the running instance and the flags were ignored.
+  Use a different profile, which is what `firefox-mcp` does.
 - **Navigation fails with an error ending in `reading 'replace'`.** Firefox was started without
   `--remote-debugging-port`, probably by hand. Close it and use `firefox-mcp`.
 - **Captchas in the MCP instance** are expected (`navigator.webdriver = true`). Use your daily
