@@ -37,6 +37,45 @@ profile only opens a window in the running daily instance, and no port opens.
 - The dedicated profile has no logins by default. Pages the agent opens can
   carry prompt injection; keep sessions that matter out of reach of the agent.
 
+## Working with pages
+
+- **Reuse the tab that is already open.** A cold start of `firefox-mcp` opens
+  exactly one tab (`about:home`, or the restored session if the profile
+  restores one). Run `list_pages`, `select_page` on it and `navigate_page`.
+  Use `new_page` only when two tabs are needed at the same time.
+- **Do not re-run `firefox-mcp` to check that the instance is up.** With
+  Marionette already listening it opens another window (`about:blank`), one
+  more tab to clean up. Check the ports instead (Troubleshooting, step 1).
+- **Set the viewport before working with desktop apps:**
+  `set_viewport_size(1280, 800)`. A narrow window switches responsive apps to
+  their mobile layout. Seen with Odoo 20 at 649 px: many2one inputs became
+  readonly and opened a full-screen search dialog, and typed text landed in
+  another field.
+- **Keep the MCP window visible on screen.** A blank page with an empty
+  `body.innerText`, a black screenshot and `take_snapshot` failing with
+  "Selector not found", while the server answers 200 and the DOM has content,
+  means the page is not painting. Discriminator, via `evaluate_script`:
+
+  ```js
+  () => new Promise(r => { let f = false; requestAnimationFrame(() => f = true); setTimeout(() => r(f), 1000); })
+  ```
+
+  `false` means no frames are being produced. Seen 4 times in one session
+  (Odoo 20, GNOME 50 on Wayland): `false` while `visibilityState` was
+  `visible` and `document.hasFocus()` was `true`; after the window was put on
+  screen the probe gave `true` and the page painted by itself. `select_page`
+  on the same tab fixed it twice, not the third time; once `document.hidden`
+  was `true` and `select_page` set it to `false`. **Cause not confirmed.**
+  Hypothesis: on Wayland, Firefox gets no frame callbacks while its window is
+  off screen (covered, minimized or on another workspace). Run the probe
+  before and after showing the window the next time it happens. Practical
+  consequence: browser-driven work cannot run unattended in the background.
+- **Verify important inputs after filling them.** `fill_by_uid` once dropped
+  the first character with no error ("OFA Export" saved as "FA Export" in an
+  Odoo 20 form; found only by reading the database). Seen once, so it is an
+  observation, not a rule. Read the value back with `evaluate_script`; if it
+  is wrong, `press_key` `ctrl+a` then `type_text` gave the right value.
+
 ## Troubleshooting
 
 1. **All tools fail, even `list_pages`.** Check that something listens:
