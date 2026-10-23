@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Firefox (MCP)
+GenericName=Web Browser for AI agents
+Comment=Dedicated Firefox instance with Marionette for the Firefox DevTools MCP
+Exec=firefox-mcp %U
+Icon=firefox
+Terminal=false
+Categories=Network;WebBrowser;
+StartupNotify=true

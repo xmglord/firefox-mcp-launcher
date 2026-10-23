@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# firefox-mcp — open a dedicated Firefox profile in a SEPARATE instance with
+# Marionette on port 2828 and WebDriver BiDi on 9222, for the Firefox DevTools
+# MCP server (@mozilla/firefox-devtools-mcp) running with --connect-existing.
+#
+# Marionette sets navigator.webdriver = true, which trips anti-bot checks
+# (Cloudflare/Turnstile and similar). So ONLY this profile uses it; your daily
+# profile keeps running without Marionette, in parallel.
+#
+#   firefox-mcp                     open/focus the MCP instance
+#   firefox-mcp <url...>            same, passing URLs to Firefox
+#   firefox-mcp --create-profile [NAME]
+#                                   create a clean profile (default name
+#                                   "firefox-mcp") and save its path
+#   firefox-mcp --print-profile     print the resolved profile path and exit
+#
+# Environment:
+#   FIREFOX_BIN            Firefox executable (default: firefox from PATH)
+#   FIREFOX_MCP_PROFILE    profile directory; overrides the config file
+#   FIREFOX_MCP_BIDI_PORT  Remote Agent (BiDi) port (default: 9222)
+#
+# Config file: ${XDG_CONFIG_HOME:-~/.config}/firefox-mcp/profile, first
+# non-comment line = absolute path of the profile directory.
+set -euo pipefail
+
+FIREFOX=${FIREFOX_BIN:-firefox}
+BIDI_PORT=${FIREFOX_MCP_BIDI_PORT:-9222}
+# Marionette's port is a profile pref (marionette.port), not a flag; the MCP
+# server is pointed at the default.
+MARIONETTE_PORT=2828
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/firefox-mcp/profile"
+
+die() { echo "firefox-mcp: $*" >&2; exit 1; }
+
+# Where each Firefox packaging keeps profiles.ini. Only used by
+# --create-profile, to find the directory Firefox chose.
+profile_roots() {
+  printf '%s\n' \
+    "$HOME/snap/firefox/common/.mozilla/firefox" \
+    "$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox" \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox" \
+    "$HOME/.mozilla/firefox"
+}
+
+# Print the directory of the profile named $1, searching every root.
+find_profile() {
+  local name=$1 root
+  while IFS= read -r root; do
+    [ -f "$root/profiles.ini" ] || continue
+    awk -F= -v name="$name" -v root="$root" '
+      /^\[/       { if (n == name && p != "") { print (rel ? root "/" p : p); exit }
+                    n = ""; p = ""; rel = 1 }
+      $1 == "Name"       { n = substr($0, 6) }
+      $1 == "Path"       { p = substr($0, 6) }
+      $1 == "IsRelative" { rel = ($2 == 1) }
+      END         { if (n == name && p != "") print (rel ? root "/" p : p) }
+    ' "$root/profiles.ini"
+  done < <(profile_roots) | head -1
+}
+
+create_profile() {
+  local name=${1:-firefox-mcp} dir
+  [ -z "$(find_profile "$name")" ] || die "a profile named '$name' already exists"
+  # No directory argument: Firefox picks one it can write to. A snap Firefox
+  # cannot write to hidden directories in $HOME, so an explicit
+  # ~/.local/share/... path fails there.
+  "$FIREFOX" -CreateProfile "$name" >/dev/null 2>&1 || true
+  # The exit code is 0 even on "Error creating profile", so check the result.
+  dir=$(find_profile "$name")
+  [ -n "$dir" ] && [ -d "$dir" ] || die "Firefox did not create profile '$name'"
+  mkdir -p "$(dirname "$CONF")"
+  printf '# firefox-mcp profile directory (first non-comment line)\n%s\n' "$dir" > "$CONF"
+  echo "created $dir"
+  echo "saved to $CONF"
+}
+
+case "${1:-}" in
+  --create-profile) shift; create_profile "$@"; exit 0 ;;
+esac
+
+if [ -n "${FIREFOX_MCP_PROFILE:-}" ]; then
+  MCP=$FIREFOX_MCP_PROFILE
+elif [ -f "$CONF" ]; then
+  MCP=$(grep -v '^\s*#' "$CONF" | grep -v '^\s*$' | head -1 || true)
+else
+  echo "firefox-mcp: no profile configured" >&2
+  echo "  Run 'firefox-mcp --create-profile', or put a profile directory" >&2
+  echo "  on the first line of $CONF." >&2
+  exit 1
+fi
+[ -d "$MCP" ] || die "profile directory not found: $MCP"
+
+if [ "${1:-}" = "--print-profile" ]; then
+  echo "$MCP"
+  exit 0
+fi
+
+# Marionette already listening: the MCP instance is up, just focus/open a window.
+if (exec 3<>"/dev/tcp/127.0.0.1/$MARIONETTE_PORT") 2>/dev/null; then
+  exec "$FIREFOX" --profile "$MCP" "$@"
+fi
+
+# First start: new instance with Marionette and the Remote Agent (BiDi).
+# Without the Remote Agent the MCP cannot navigate (navigate_page/new_page fail
+# with "reading 'replace'") nor capture network/console: the WebDriver session
+# never gets the webSocketUrl capability selenium needs for BiDi.
+exec env MOZ_MARIONETTE=1 "$FIREFOX" --profile "$MCP" --new-instance \
+  --remote-debugging-port "$BIDI_PORT" "$@"
