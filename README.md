@@ -9,6 +9,12 @@ anti-bot checks, and upstream advises against pointing the server at your regula
 keeps the two apart. A small wrapper starts a separate profile, in its own process, with both
 protocols on. Your daily Firefox keeps running untouched.
 
+Upstream's [Connect to existing Firefox](https://github.com/mozilla/firefox-devtools-mcp#connect-to-existing-firefox)
+section has the bare recipe (`firefox -P firefox-mcp --marionette --remote-debugging-port`). On top
+of it, this repo adds a profile path read from a config file, `--create-profile` with a check that
+the profile was actually created, reuse of a running instance instead of a second launch, a menu
+entry, and the troubleshooting below.
+
 ```
  daily Firefox ─ your profile, no Marionette        (normal browsing, logins)
 
