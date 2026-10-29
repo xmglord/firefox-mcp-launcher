@@ -75,6 +75,15 @@ profile only opens a window in the running daily instance, and no port opens.
   Odoo 20 form; found only by reading the database). Seen once, so it is an
   observation, not a rule. Read the value back with `evaluate_script`; if it
   is wrong, `press_key` `ctrl+a` then `type_text` gave the right value.
+- **To replace text in a field that already has some, use `press_key`
+  `ctrl+a` on the uid, then `type_text`; not `fill_by_uid`.** `fill_by_uid`
+  clears with `el.value = ''`, focuses, then sends keystrokes (read in
+  firefox-devtools-mcp 0.10.7 and upstream main). If the page writes its own
+  value back on focus, the keystrokes are appended: "4" filled with "1" became
+  "41". Seen in a HubSpot form, then reproduced on test pages: a React 18
+  controlled input that sets state in `onFocus` appends; the same input
+  without the `onFocus` state change, and a plain HTML input, are replaced
+  correctly. Filling an empty field is not affected.
 
 ## Troubleshooting
 
