@@ -78,12 +78,15 @@ profile only opens a window in the running daily instance, and no port opens.
 - **To replace text in a field that already has some, use `press_key`
   `ctrl+a` on the uid, then `type_text`; not `fill_by_uid`.** `fill_by_uid`
   clears with `el.value = ''`, focuses, then sends keystrokes (read in
-  firefox-devtools-mcp 0.10.7 and upstream main). If the page writes its own
-  value back on focus, the keystrokes are appended: "4" filled with "1" became
-  "41". Seen in a HubSpot form, then reproduced on test pages: a React 18
-  controlled input that sets state in `onFocus` appends; the same input
-  without the `onFocus` state change, and a plain HTML input, are replaced
-  correctly. Filling an empty field is not affected.
+  firefox-devtools-mcp 0.10.7). If the page writes its own value back on
+  focus, the keystrokes are appended: "4" filled with "1" became "41". Seen in
+  a HubSpot form, then reproduced on test pages: a React 18 controlled input
+  that sets state in `onFocus` appends; the same input without the `onFocus`
+  state change, and a plain HTML input, are replaced correctly. Filling an
+  empty field is not affected. Fixed upstream by
+  [#228](https://github.com/mozilla/firefox-devtools-mcp/pull/228), not
+  released yet: 0.10.7 is the latest on npm (2026-10-30), so keep this
+  workaround until a newer version ships.
 
 ## Troubleshooting
 
