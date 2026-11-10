@@ -51,25 +51,43 @@ profile only opens a window in the running daily instance, and no port opens.
   their mobile layout. Seen with Odoo 20 at 649 px: many2one inputs became
   readonly and opened a full-screen search dialog, and typed text landed in
   another field.
-- **Keep the MCP window visible on screen.** A blank page with an empty
-  `body.innerText`, a black screenshot and `take_snapshot` failing with
-  "Selector not found", while the server answers 200 and the DOM has content,
-  means the page is not painting. Discriminator, via `evaluate_script`:
+- **Keep part of the MCP window uncovered on screen.** Firefox paints the
+  page only while some part of its window is on screen. Symptoms when it
+  does not: a blank page with an empty `body.innerText`, a black screenshot,
+  `take_snapshot` failing with "Selector not found" while the server answers
+  200 and the DOM has content, or dropdowns opening with their options laid
+  out far off the viewport. Probe, via `evaluate_script`:
 
   ```js
-  () => new Promise(r => { let f = false; requestAnimationFrame(() => f = true); setTimeout(() => r(f), 1000); })
+  () => new Promise(r => { let f = false; requestAnimationFrame(() => f = true); setTimeout(() => r({ painting: f, hidden: document.hidden }), 1000); })
   ```
 
-  `false` means no frames are being produced. Seen 4 times in one session
-  (Odoo 20, GNOME 50 on Wayland): `false` while `visibilityState` was
-  `visible` and `document.hasFocus()` was `true`; after the window was put on
-  screen the probe gave `true` and the page painted by itself. `select_page`
-  on the same tab fixed it twice, not the third time; once `document.hidden`
-  was `true` and `select_page` set it to `false`. **Cause not confirmed.**
-  Hypothesis: on Wayland, Firefox gets no frame callbacks while its window is
-  off screen (covered, minimized or on another workspace). Run the probe
-  before and after showing the window the next time it happens. Practical
-  consequence: browser-driven work cannot run unattended in the background.
+  The page is usable only with `painting: true` and `hidden: false`; check
+  both, because they disagree. Measured with a page sampling both every
+  second while the window was moved by hand (Firefox 157, GNOME 50 on
+  Wayland, focus in another window throughout):
+
+  | MCP window | `hidden` | Painting |
+  |---|---|---|
+  | Side by side with another window, or half covered by it | `false` | yes |
+  | Full screen (F11), behind a maximized window | `false` | yes |
+  | Covered completely by another window (half-width, maximized or full screen) | `true` or `false` | no |
+  | Minimized | `true` | no |
+
+  When fully covered, `hidden` was `true` in some runs and `false` in others
+  under the same layout (both seen with two maximized windows), but painting
+  stopped every time. So the rule is coverage, not focus or window mode: full
+  screen only helps because a maximized window leaves the top bar strip
+  uncovered; behind another full-screen window it stopped painting too. Other
+  workspaces were not measured on their own. In another session a page
+  reported `hidden: true` while frames were painting, the opposite mismatch.
+  `document.hasFocus()` was `true` in every sample, minimized included, so it
+  says nothing about the window. `select_page` did not change the state (2
+  of 2: once hidden, once visible without painting); in an earlier session it
+  seemed to help twice, which these tests do not explain. Practical
+  consequence: tile the MCP window next to the window you work in while the
+  agent drives it; browser-driven work cannot run unattended in the
+  background.
 - **Verify important inputs after filling them.** `fill_by_uid` once dropped
   the first character with no error ("OFA Export" saved as "FA Export" in an
   Odoo 20 form; found only by reading the database). Seen once, so it is an
