@@ -59,11 +59,14 @@ profile only opens a window in the running daily instance, and no port opens.
   out far off the viewport. Probe, via `evaluate_script`:
 
   ```js
-  () => new Promise(r => { let f = false; requestAnimationFrame(() => f = true); setTimeout(() => r({ painting: f, hidden: document.hidden }), 1000); })
+  () => new Promise(r => { let n = 0; const loop = () => { n++; requestAnimationFrame(loop); }; requestAnimationFrame(loop); setTimeout(() => r({ frames: n, hidden: document.hidden }), 1000); })
   ```
 
-  The page is usable only with `painting: true` and `hidden: false`; check
-  both, because they disagree. Measured with a page sampling both every
+  The page is usable only with `hidden: false` and tens of frames (60-80
+  when painting normally). Count frames instead of checking that one fired:
+  a hidden window still gets 1-3 throttled frames per second, so a boolean
+  "did rAF fire" probe reads `true` on a page that is not painting. Check
+  both values, because they disagree. Measured with a page sampling both every
   second while the window was moved by hand (Firefox 157, GNOME 50 on
   Wayland, focus in another window throughout):
 
@@ -79,9 +82,12 @@ profile only opens a window in the running daily instance, and no port opens.
   stopped every time. So the rule is coverage, not focus or window mode: full
   screen only helps because a maximized window leaves the top bar strip
   uncovered; behind another full-screen window it stopped painting too. Other
-  workspaces were not measured on their own. In another session a page
-  reported `hidden: true` while frames were painting, the opposite mismatch.
-  `document.hasFocus()` was `true` in every sample, minimized included, so it
+  workspaces were not measured on their own. Keyboard input is unreliable
+  while the page does not paint: on a listbox that opens with an animation,
+  the same two `ArrowUp` presses moved one option in one run and did not
+  open the list in another (2 of 2 wrong, 3 of 3 right with the window
+  uncovered), so `Enter` would have saved the wrong value. Read the focused
+  option back before confirming. `document.hasFocus()` was `true` in every sample, minimized included, so it
   says nothing about the window. `select_page` did not change the state (2
   of 2: once hidden, once visible without painting); in an earlier session it
   seemed to help twice, which these tests do not explain. Practical
